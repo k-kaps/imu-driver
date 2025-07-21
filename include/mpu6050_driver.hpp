@@ -13,5 +13,7 @@ class MPU6050Driver {
 public:
 	MPU6050Driver();
 private:
+	int file_;
+	void ErrorHandler(const std::string& error);
 	void InitializeDriver();
 };
