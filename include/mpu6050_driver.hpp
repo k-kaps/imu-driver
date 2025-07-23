@@ -14,35 +14,31 @@ extern "C" {
 
 // Accelerometer Registers
 #define ACCL_XOUT_H 0x3B
-#define ACCL_XOUT_L 0x3C
 #define ACCL_YOUT_H 0x3D
-#define ACCL_YOUT_L 0x3E
 #define ACCL_ZOUT_H 0x3F
-#define ACCL_ZOUT_L 0x40
 
 // Gyroscope Registers
 #define GYRO_XOUT_H 0x43
-#define GYRO_XOUT_L 0x44
 #define GYRO_YOUT_H 0x45
-#define GYRO_YOUT_L 0x46
 #define GYRO_ZOUT_H 0x47
-#define GYRO_ZOUT_L 0x48
 
 #define SELF_TEST_GYRO 0x1B
 #define SELF_TEST_ACCL 0x1C
+#define WHO_AM_I_REG 0x75
 
 class MPU6050Driver {
 public:
 	MPU6050Driver();
 	~MPU6050Driver();
-	void initializeDriver();
-	void readGyroscopeValues();
-	void readAccelerometerValues();
-	void selfTest();
+	void init_driver();
+	void read_gyro();
+	void read_accl();
+	void self_test();
 private:
 	int file_;
 	bool init_;
-	int16_t readValue(char reg_addr);
-	void errorHandler(const std::string& message);
-	bool checkInitialized();
+	int16_t process_hl_buf(uint8_t* buf);
+	void read_reg(char reg_addr, uint8_t* out_buf, uint8_t size);
+	void error_handler(const std::string& message);
+	bool check_init();
 };

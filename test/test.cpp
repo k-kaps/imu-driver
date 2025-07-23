@@ -2,7 +2,6 @@
 
 int main() {
     MPU6050Driver imu;
-    imu.initializeDriver();
-    imu.readAccelerometerValues();
-    imu.readGyroscopeValues();
+    imu.init_driver();
+    imu.read_accl();
 }
