@@ -14,6 +14,10 @@ add_executable(test
     ${PROJECT_SOURCE_DIR}/test/test.cpp
 )
 
+target_link_libraries(${PROJECT_NAME}
+	i2c
+)
+
 target_link_libraries(test
     ${PROJECT_NAME}
 )
