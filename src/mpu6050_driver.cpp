@@ -90,6 +90,20 @@ void MPU6050Driver::read_accl() {
 	std::cout << "Accelerometer: " << accl_x << " " << accl_y << " " << accl_z << std::endl;
 }
 
+void MPU6050Driver::read_temp() {
+	if (!check_init()) return;
+
+	uint8_t temp_buf[2];
+
+	read_reg(TEMP_REG, temp_buf, 2);
+
+	int16_t temp_raw = combine_buf_vals(temp_buf);
+
+	double temp = process_raw_temp_val(temp_raw);
+
+	std::cout << "Temperature: " << temp << std::endl;
+}
+
 int16_t MPU6050Driver::combine_buf_vals(uint8_t* buf) {
 	int16_t processed_val = (buf[0] << 8) | (buf[1] & 0xFF);
 	return processed_val;
@@ -103,6 +117,11 @@ double MPU6050Driver::process_raw_accl_val(int16_t accl_val) {
 double MPU6050Driver::process_raw_gyro_val(int16_t gyro_val) {
 	double gyro_degps = gyro_val / gyro_map_[config_.gyro_fsr];
 	return gyro_degps;
+}
+
+double MPU6050Driver::process_raw_temp_val(int16_t temp_val) {
+	double temp_C = temp_val/340.0 + 36.53;
+	return temp_C;
 }
 
 void MPU6050Driver::read_reg(char reg_addr, uint8_t* out_buf, uint8_t size) {
@@ -120,8 +139,8 @@ void MPU6050Driver::read_reg(char reg_addr, uint8_t* out_buf, uint8_t size) {
 }
 
 void MPU6050Driver::error_handler(const std::string& error) {
-	std::cout << error << std::endl;
-	std::cout << "ERRNO : " << strerror(errno) << std::endl;
+	std::cerr << error << std::endl;
+	std::cerr << "ERRNO : " << strerror(errno) << std::endl;
 	exit(1);
 }
 

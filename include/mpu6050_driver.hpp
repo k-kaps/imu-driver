@@ -27,6 +27,8 @@ extern "C" {
 #define GYRO_YOUT_H 0x45
 #define GYRO_ZOUT_H 0x47
 
+#define TEMP_REG 0x41
+
 #define GRAVITY 9.81
 
 enum AcclFSR {
@@ -53,9 +55,11 @@ public:
 	MPU6050Driver();
 	MPU6050Driver(MPU6050Config& config);
 	~MPU6050Driver();
+	
 	void init_driver();
-	void read_gyro();
 	void read_accl();
+	void read_gyro();
+	void read_temp();
 	void self_test();
 private:
 	int file_;
@@ -67,11 +71,11 @@ private:
 	std::unordered_map<int, float> gyro_map_ = 
 		{{GyroFSR::G_FSR_250, 131.0}, {GyroFSR::G_FSR_500, 65.5}, 
 		{GyroFSR::G_FSR_1000, 32.8}, {GyroFSR::G_FSR_2000, 16.4}};
-
 	int16_t combine_buf_vals(uint8_t* buf);
 	
 	double process_raw_accl_val(int16_t accl_val);
 	double process_raw_gyro_val(int16_t gyro_val);
+	double process_raw_temp_val(int16_t temp_val);
 
 	void configure_imu();
 	void read_reg(char reg_addr, uint8_t* out_buf, uint8_t size);

@@ -10,4 +10,5 @@ int main() {
 	imu.init_driver();
 	imu.read_accl();
     	imu.read_gyro();
+	imu.read_temp();
 }
