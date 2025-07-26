@@ -17,4 +17,7 @@ int main() {
 		std::cout << "Z : " << accl_stamped.data.z << std::endl;
 		std::cout << accl_stamped.timestamp << std::endl;
 	}
+
+	bool result = imu.self_test();
+	std::cout << result << std::endl;
 }

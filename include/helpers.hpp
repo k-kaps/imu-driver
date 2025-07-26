@@ -2,12 +2,20 @@
  * INFO:
  * 	Contains Register Maps, Structs and Enums for the MPU6050 Driver
  */
+#include <cmath>
 
 // Init Registers
 #define I2C_ADDRESS 0x68
 #define I2C_ADAPTER_NUM 1
 #define WHO_AM_I_REG 0x75
 #define WAKE_UP_REG 0x6B
+#define SELF_TEST 0x0D 
+
+// FIFO Registers
+#define FIFO_ENABLE 0x23
+#define USER_CONTROL 0x6A
+#define FIFO_COUNT 0x72
+#define FIFO_RW 0x74
 
 // Configuration registers
 #define DLPF_CONFIG 0x1A
@@ -28,6 +36,7 @@
 
 #define GRAVITY 9.81
 #define DELAY_TIME 200'000
+#define STR_THRESH 14
 
 // Enums for storing config
 enum AcclFSR {
@@ -66,12 +75,43 @@ struct AcclData {
 	double x;
 	double y;
 	double z;
+
+	AcclData operator-(AcclData& st_off) {
+		return {
+			x - st_off.x,
+			y - st_off.y,
+			z - st_off.z
+		};
+	}
+
+	AcclData str_percent(AcclData& ft) {
+		return {
+			100 * std::fabs(x - ft.x) / ft.x,
+			100 * std::fabs(y - ft.y) / ft.y,
+			100 * std::fabs(z - ft.z) / ft.z
+		};
+	}
 };
 
 struct GyroData {
 	double x;
 	double y;
 	double z;
+	GyroData operator-(GyroData& st_off) {
+		return {
+			x - st_off.x,
+			y - st_off.y,
+			z - st_off.z
+		};
+	}
+
+	GyroData str_percent(GyroData& ft) {
+		return {
+			100 * std::fabs(x - ft.x) / ft.x,
+			100 * std::fabs(y - ft.y) / ft.y,
+			100 * std::fabs(z - ft.z) / ft.z
+		};
+	}
 };
 
 struct IMUData {

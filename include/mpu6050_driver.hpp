@@ -31,7 +31,8 @@ public:
 
 	bool read_temp(TempStamped& temp_stamped);
 
-	bool self_test(); // TODO
+	bool self_test();
+
 private:
 	int file_;
 	bool init_;
@@ -50,9 +51,17 @@ private:
 	double process_raw_temp_val(int16_t temp_val);
 
 	void configure_imu();
+
 	void toggle_self_test_cfg(bool on);
+	
 	void toggle_fifo(bool on);
-	bool check_fifo_status(bool on);
+	void toggle_fifo_cfg(bool on);
+	bool check_fifo_on();
+	void reset_fifo();
+	bool compute_ft(AcclData& accl_ft, GyroData& gyro_ft);
+	bool get_change_from_ft(AcclData& diff, AcclData& ft);
+	bool get_change_from_ft(GyroData& diff, GyroData& ft);
+
 	void read_reg(char reg_addr, uint8_t* out_buf, uint8_t size);
 
 	void error_handler(const std::string& message);

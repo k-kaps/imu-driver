@@ -68,6 +68,42 @@ void MPU6050Driver::toggle_self_test_cfg(bool on) {
 	}
 }
 
+void MPU6050Driver::toggle_fifo_cfg(bool on) {
+	char fifo_cfg = 0x00;
+	if (on) {
+		fifo_cfg = 0x78;
+	}
+	
+	char fifo_en[2] = {FIFO_ENABLE, fifo_cfg};
+	if (write(file_, fifo_en, 2) != 2) {
+		error_handler("Failed to toggle FIFO ENABLE");
+	}
+}
+
+void MPU6050Driver::reset_fifo() {
+	char fifo_reset[2] = {USER_CONTROL, 0x40};
+
+	if (write(file_, fifo_reset, 2) != 2) {
+		error_handler("Failed to reset FIFO");
+	}
+}
+
+void MPU6050Driver::toggle_fifo(bool on) {
+	char fifo_byte = 0x00;
+	if (!on) {
+		toggle_fifo_cfg(false);
+		reset_fifo();
+	}
+	if (on) {
+		toggle_fifo_cfg(true);
+		fifo_byte = 0x40;
+	}
+	char usr_ctrl[2] = {USER_CONTROL, fifo_byte};
+	if (write(file_, usr_ctrl, 2) != 2) {
+		error_handler("Failed to toggle USER CONTROL");
+	}
+}
+
 
 bool MPU6050Driver::read_accl(AcclStamped& accl_stamped) {
 	if (read_accl(accl_stamped.data)) {
@@ -163,16 +199,162 @@ bool MPU6050Driver::read_temp(TempStamped& temp_stamped) {
 	return true;
 }
 
+bool MPU6050Driver::check_fifo_on() {
+	uint8_t fifo_status[1];
+	read_reg(USER_CONTROL, fifo_status, 1);
+	if ((fifo_status[1] >> 6) & 0x01) {
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+
+
+bool MPU6050Driver::get_change_from_ft(AcclData& diff, AcclData& ft) {
+	AcclData percent_resp = diff.str_percent(ft);
+	std::cout << "ACCL" << std::endl;
+	std::cout << percent_resp.x << " " << percent_resp.y << " " << percent_resp.z << std::endl;
+	if (percent_resp.x > STR_THRESH || percent_resp.y > STR_THRESH || percent_resp.z > STR_THRESH) {
+		return false;
+	}	
+	return true;
+}
+
+bool MPU6050Driver::get_change_from_ft(GyroData& diff, GyroData& ft) {
+	GyroData percent_resp = diff.str_percent(ft);
+	std::cout << "GYRO" << std::endl;
+	std::cout << percent_resp.x << " " << percent_resp.y << " " << percent_resp.z << std::endl;
+	if (percent_resp.x > STR_THRESH || percent_resp.y > STR_THRESH || percent_resp.z > STR_THRESH) {
+		return false;
+	}
+	return true;
+}
+
+bool MPU6050Driver::compute_ft(AcclData& accl_data, GyroData& gyro_data) {
+	uint8_t test_vals[4];
+	read_reg(SELF_TEST, test_vals, 4);
+
+	uint8_t xg_test = test_vals[0] & 0x1F;
+	uint8_t yg_test = test_vals[1] & 0x1F;
+	uint8_t zg_test = test_vals[2] & 0x1F;
+
+	uint8_t xa_test = ((test_vals[0] >> 3) & 0x1C) | ((test_vals[3] >> 4) & 0x03);
+	uint8_t ya_test = ((test_vals[1] >> 3) & 0x1C) | ((test_vals[3] >> 4) & 0x03);
+	uint8_t za_test = ((test_vals[2] >> 3) & 0x1C) | ((test_vals[3] >> 4) & 0x03);
+
+	accl_data.x = 4096 * 0.34 * pow((0.9/0.34), (xa_test - 1)/(30));
+	accl_data.y = 4096 * 0.34 * pow((0.9/0.34), (ya_test - 1)/(30));
+	accl_data.z = 4096 * 0.34 * pow((0.9/0.34), (za_test - 1)/(30));
+	
+	gyro_data.x = 25 * 131 * pow(1.046, (xg_test - 1));
+	gyro_data.x = -25 * 131 * pow(1.046, (yg_test - 1));
+	gyro_data.x = 25 * 131 * pow(1.046, (zg_test - 1));
+
+	return true;
+}
+
 bool MPU6050Driver::self_test() {
 	if (!check_init()) return false;
+	if (check_fifo_on()) toggle_fifo(false);
+
+	AcclData accl_st_on;
+	AcclData accl_st_off;
+	AcclData accl_ft;
+
+	GyroData gyro_st_on;
+	GyroData gyro_st_off;
+	GyroData gyro_ft;
 
 	toggle_self_test_cfg(true);
 	usleep(DELAY_TIME);
-	
-	// TODO
+	if (!compute_ft(accl_ft, gyro_ft)) return false;
+
+	uint8_t count[2];
+	toggle_fifo(true);
+	usleep(DELAY_TIME);
+
+	uint16_t num_samples = 0;
+	while (num_samples < 60) {
+		read_reg(FIFO_COUNT, count, 2);
+		num_samples = combine_buf_vals(count);
+	}
 	
 	toggle_self_test_cfg(false);
+	uint8_t fifo_buf[12];
+	for (int i = 0; i < 60; i = i + 12) {
+		read_reg(FIFO_RW, fifo_buf, 12);
+		
+		int16_t accl_raw_x = combine_buf_vals(&fifo_buf[0]);
+		int16_t accl_raw_y = combine_buf_vals(&fifo_buf[2]);
+		int16_t accl_raw_z = combine_buf_vals(&fifo_buf[4]);
+		int16_t gyro_raw_x = combine_buf_vals(&fifo_buf[6]);
+		int16_t gyro_raw_y = combine_buf_vals(&fifo_buf[8]);
+		int16_t gyro_raw_z = combine_buf_vals(&fifo_buf[10]);
+
+		accl_st_on.x += process_raw_accl_val(accl_raw_x); 
+		accl_st_on.y += process_raw_accl_val(accl_raw_y); 
+		accl_st_on.z += process_raw_accl_val(accl_raw_z); 
+		gyro_st_on.x += process_raw_gyro_val(gyro_raw_x); 
+		gyro_st_on.y += process_raw_gyro_val(gyro_raw_y); 
+		gyro_st_on.z += process_raw_gyro_val(gyro_raw_z);	
+	}
+
+	accl_st_on.x = accl_st_on.x/5;
+	accl_st_on.y = accl_st_on.y/5;
+	accl_st_on.z = accl_st_on.z/5;
+	gyro_st_on.x = gyro_st_on.x/5;
+	gyro_st_on.y = gyro_st_on.y/5;
+	gyro_st_on.z = gyro_st_on.z/5;
+
+	toggle_fifo(false);
 	usleep(DELAY_TIME);
+
+	toggle_fifo(true);
+	usleep(DELAY_TIME);
+
+	while (num_samples < 60) {
+		read_reg(FIFO_COUNT, count, 2);
+		num_samples = combine_buf_vals(count);
+	}
+	
+	for (int i = 0; i < 60; i = i + 12) {
+		read_reg(FIFO_RW, fifo_buf, 12);
+		
+		int16_t accl_raw_x = combine_buf_vals(&fifo_buf[0]);
+		int16_t accl_raw_y = combine_buf_vals(&fifo_buf[2]);
+		int16_t accl_raw_z = combine_buf_vals(&fifo_buf[4]);
+		int16_t gyro_raw_x = combine_buf_vals(&fifo_buf[6]);
+		int16_t gyro_raw_y = combine_buf_vals(&fifo_buf[8]);
+		int16_t gyro_raw_z = combine_buf_vals(&fifo_buf[10]);
+
+		accl_st_off.x += process_raw_accl_val(accl_raw_x); 
+		accl_st_off.y += process_raw_accl_val(accl_raw_y); 
+		accl_st_off.z += process_raw_accl_val(accl_raw_z); 
+		gyro_st_off.x += process_raw_gyro_val(gyro_raw_x); 
+		gyro_st_off.y += process_raw_gyro_val(gyro_raw_y); 
+		gyro_st_off.z += process_raw_gyro_val(gyro_raw_z);	
+	}
+
+	accl_st_off.x = accl_st_off.x/5;
+	accl_st_off.y = accl_st_off.y/5;
+	accl_st_off.z = accl_st_off.z/5;
+	gyro_st_off.x = gyro_st_off.x/5;
+	gyro_st_off.y = gyro_st_off.y/5;
+	gyro_st_off.z = gyro_st_off.z/5;
+	
+	toggle_fifo(false);
+	
+	AcclData diff_accl;
+	GyroData diff_gyro;
+
+	diff_accl = accl_st_on - accl_st_off;
+	diff_gyro = gyro_st_on - gyro_st_off;
+
+	get_change_from_ft(diff_accl, accl_ft);
+	get_change_from_ft(diff_gyro, gyro_ft);
+       	std::cout << "Failed Self Test" << std::endl;
+	return false;
 }
 
 int16_t MPU6050Driver::combine_buf_vals(uint8_t* buf) {
