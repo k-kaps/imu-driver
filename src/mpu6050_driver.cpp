@@ -70,6 +70,24 @@ void MPU6050Driver::toggle_self_test_cfg(bool on) {
 
 
 bool MPU6050Driver::read_accl(AcclStamped& accl_stamped) {
+	if (read_accl(accl_stamped.data)) {
+		accl_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
+			(std::chrono::system_clock::now().time_since_epoch()).count();
+		return true;
+	}
+	return true;
+}
+
+bool MPU6050Driver::read_gyro(GyroStamped& gyro_stamped) {
+	if (read_gyro(gyro_stamped.data)) {
+		gyro_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
+			(std::chrono::system_clock::now().time_since_epoch()).count();
+		return true;
+	}
+	return false;
+}
+
+bool MPU6050Driver::read_accl(AcclData& accl_data) {
 	if (!check_init()) return false;
 
 	uint8_t accl_x_buf[2];
@@ -84,16 +102,14 @@ bool MPU6050Driver::read_accl(AcclStamped& accl_stamped) {
 	int16_t accl_raw_y = combine_buf_vals(accl_y_buf);
 	int16_t accl_raw_z = combine_buf_vals(accl_z_buf);
 
-	accl_stamped.data.x = process_raw_accl_val(accl_raw_x);
-	accl_stamped.data.y = process_raw_accl_val(accl_raw_y);
-	accl_stamped.data.z = process_raw_accl_val(accl_raw_z);
-	accl_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
-		(std::chrono::system_clock::now().time_since_epoch()).count();
-	
+	accl_data.x = process_raw_accl_val(accl_raw_x);
+	accl_data.y = process_raw_accl_val(accl_raw_y);
+	accl_data.z = process_raw_accl_val(accl_raw_z);
+
 	return true;
 }
 
-bool MPU6050Driver::read_gyro(GyroStamped& gyro_stamped) {
+bool MPU6050Driver::read_gyro(GyroData& gyro_data) {
 	if (!check_init()) return false;
 
 	uint8_t gyro_x_buf[2];
@@ -108,16 +124,31 @@ bool MPU6050Driver::read_gyro(GyroStamped& gyro_stamped) {
 	int16_t gyro_raw_y = combine_buf_vals(gyro_y_buf);
 	int16_t gyro_raw_z = combine_buf_vals(gyro_z_buf);
 
-	gyro_stamped.data.x = process_raw_gyro_val(gyro_raw_x);
-	gyro_stamped.data.y = process_raw_gyro_val(gyro_raw_y);
-	gyro_stamped.data.z = process_raw_gyro_val(gyro_raw_z);
-	gyro_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
-		(std::chrono::system_clock::now().time_since_epoch()).count();
+	gyro_data.x = process_raw_gyro_val(gyro_raw_x);
+	gyro_data.y = process_raw_gyro_val(gyro_raw_y);
+	gyro_data.z = process_raw_gyro_val(gyro_raw_z);
+
 	return true;
 }
 
-double MPU6050Driver::read_temp() {
-	if (!check_init()) return -1;
+bool MPU6050Driver::read_imu(IMUStamped& imu_stamped) {
+	if (read_imu(imu_stamped.data)) {
+		imu_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
+			(std::chrono::system_clock::now().time_since_epoch()).count();
+		return true;
+	}
+	return false;
+}
+
+bool MPU6050Driver::read_imu(IMUData& imu_data) {
+	if (read_accl(imu_data.accl) && read_gyro(imu_data.gyro)) {
+		return true;
+	}
+	return false;
+}
+
+bool MPU6050Driver::read_temp(TempStamped& temp_stamped) {
+	if (!check_init()) return false;
 
 	uint8_t temp_buf[2];
 
@@ -125,7 +156,11 @@ double MPU6050Driver::read_temp() {
 
 	int16_t temp_raw = combine_buf_vals(temp_buf);
 
-	return process_raw_temp_val(temp_raw);
+	temp_stamped.data = process_raw_temp_val(temp_raw);
+	temp_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
+		(std::chrono::system_clock::now().time_since_epoch()).count();
+
+	return true;
 }
 
 bool MPU6050Driver::self_test() {

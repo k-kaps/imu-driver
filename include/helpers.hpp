@@ -1,6 +1,6 @@
 /**
- * Contains Register Maps, Structs and Enums for the MPU6050 Driver
- * 
+ * INFO:
+ * 	Contains Register Maps, Structs and Enums for the MPU6050 Driver
  */
 
 // Init Registers
@@ -77,7 +77,11 @@ struct GyroData {
 struct IMUData {
 	AcclData accl;
 	GyroData gyro;
-	double timestamp;
+};
+
+struct IMUStamped {
+	IMUData data;
+	int64_t timestamp;
 };
 
 struct AcclStamped {
@@ -90,3 +94,7 @@ struct GyroStamped {
 	int64_t timestamp;
 };
 
+struct TempStamped {
+	double data;
+	int64_t timestamp;
+};

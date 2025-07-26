@@ -19,9 +19,18 @@ public:
 	~MPU6050Driver();
 	
 	void init_driver();
+
        	bool read_accl(AcclStamped& accl_stamped);
+	bool read_accl(AcclData& accl_data);
+
 	bool read_gyro(GyroStamped& gyro_stamped);
-	double read_temp();
+	bool read_gyro(GyroData& gyro_data);
+
+	bool read_imu(IMUStamped& imu_stamped);
+	bool read_imu(IMUData& imu_data);
+
+	bool read_temp(TempStamped& temp_stamped);
+
 	bool self_test(); // TODO
 private:
 	int file_;
@@ -42,6 +51,8 @@ private:
 
 	void configure_imu();
 	void toggle_self_test_cfg(bool on);
+	void toggle_fifo(bool on);
+	bool check_fifo_status(bool on);
 	void read_reg(char reg_addr, uint8_t* out_buf, uint8_t size);
 
 	void error_handler(const std::string& message);
