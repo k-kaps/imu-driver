@@ -44,32 +44,33 @@ void MPU6050Driver::configure_imu() {
 	if(write(file_, accl_buf, sizeof(accl_buf)) != 2) {
 		error_handler("Failed to set Accelerometer Configuration");
 	}
+
+	char dlpf_buf[2] = {DLPF_CONFIG, (config_.dlpf_cfg)};
+	if(write(file_, dlpf_buf, sizeof(dlpf_buf)) != 2) {
+		error_handler("Failed to set DLPF Configguration");
+	}
 }
 
-void MPU6050Driver::read_gyro() {
-	if (!check_init()) return;
-
-	uint8_t gyro_x_buf[2];
-	uint8_t gyro_y_buf[2];
-	uint8_t gyro_z_buf[2];
-
-	read_reg(GYRO_XOUT_H, gyro_x_buf, 2);
-	read_reg(GYRO_YOUT_H, gyro_y_buf, 2);
-	read_reg(GYRO_ZOUT_H, gyro_z_buf, 2);
-
-	int16_t gyro_raw_x = combine_buf_vals(gyro_x_buf);
-	int16_t gyro_raw_y = combine_buf_vals(gyro_y_buf);
-	int16_t gyro_raw_z = combine_buf_vals(gyro_z_buf);
-
-	double gyro_x = process_raw_gyro_val(gyro_raw_x);
-	double gyro_y = process_raw_gyro_val(gyro_raw_y);
-	double gyro_z = process_raw_gyro_val(gyro_raw_z);
+void MPU6050Driver::toggle_self_test_cfg(bool on) {
+	char cfg_byte = 0x00;
+	if (on) {
+		cfg_byte = 0xE0;
+	}
 	
-	std::cout << "Gyroscope: " << gyro_x << " " << gyro_y << " " << gyro_z << std::endl;
+	char accl_cfg[2] = {ACCL_CONFIG, cfg_byte};
+	if (write(file_, accl_cfg, 2) != 2) {
+		error_handler("Failed to toggle self test for Accelerometer");
+	}
+
+	char gyro_cfg[2] = {GYRO_CONFIG, cfg_byte};
+	if (write(file_, gyro_cfg, 2) != 2) {
+		error_handler("Failed to toggle self test for Gyroscope");
+	}
 }
 
-void MPU6050Driver::read_accl() {
-	if (!check_init()) return;
+
+bool MPU6050Driver::read_accl(AcclStamped& accl_stamped) {
+	if (!check_init()) return false;
 
 	uint8_t accl_x_buf[2];
 	uint8_t accl_y_buf[2];
@@ -83,15 +84,40 @@ void MPU6050Driver::read_accl() {
 	int16_t accl_raw_y = combine_buf_vals(accl_y_buf);
 	int16_t accl_raw_z = combine_buf_vals(accl_z_buf);
 
-	double accl_x = process_raw_accl_val(accl_raw_x);
-	double accl_y = process_raw_accl_val(accl_raw_y);
-	double accl_z = process_raw_accl_val(accl_raw_z);
+	accl_stamped.data.x = process_raw_accl_val(accl_raw_x);
+	accl_stamped.data.y = process_raw_accl_val(accl_raw_y);
+	accl_stamped.data.z = process_raw_accl_val(accl_raw_z);
+	accl_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
+		(std::chrono::system_clock::now().time_since_epoch()).count();
 	
-	std::cout << "Accelerometer: " << accl_x << " " << accl_y << " " << accl_z << std::endl;
+	return true;
 }
 
-void MPU6050Driver::read_temp() {
-	if (!check_init()) return;
+bool MPU6050Driver::read_gyro(GyroStamped& gyro_stamped) {
+	if (!check_init()) return false;
+
+	uint8_t gyro_x_buf[2];
+	uint8_t gyro_y_buf[2];
+	uint8_t gyro_z_buf[2];
+
+	read_reg(GYRO_XOUT_H, gyro_x_buf, 2);
+	read_reg(GYRO_YOUT_H, gyro_y_buf, 2);
+	read_reg(GYRO_ZOUT_H, gyro_z_buf, 2);
+	
+	int16_t gyro_raw_x = combine_buf_vals(gyro_x_buf);
+	int16_t gyro_raw_y = combine_buf_vals(gyro_y_buf);
+	int16_t gyro_raw_z = combine_buf_vals(gyro_z_buf);
+
+	gyro_stamped.data.x = process_raw_gyro_val(gyro_raw_x);
+	gyro_stamped.data.y = process_raw_gyro_val(gyro_raw_y);
+	gyro_stamped.data.z = process_raw_gyro_val(gyro_raw_z);
+	gyro_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
+		(std::chrono::system_clock::now().time_since_epoch()).count();
+	return true;
+}
+
+double MPU6050Driver::read_temp() {
+	if (!check_init()) return -1;
 
 	uint8_t temp_buf[2];
 
@@ -99,9 +125,19 @@ void MPU6050Driver::read_temp() {
 
 	int16_t temp_raw = combine_buf_vals(temp_buf);
 
-	double temp = process_raw_temp_val(temp_raw);
+	return process_raw_temp_val(temp_raw);
+}
 
-	std::cout << "Temperature: " << temp << std::endl;
+bool MPU6050Driver::self_test() {
+	if (!check_init()) return false;
+
+	toggle_self_test_cfg(true);
+	usleep(DELAY_TIME);
+	
+	// TODO
+	
+	toggle_self_test_cfg(false);
+	usleep(DELAY_TIME);
 }
 
 int16_t MPU6050Driver::combine_buf_vals(uint8_t* buf) {

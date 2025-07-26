@@ -8,7 +8,13 @@ int main() {
 	MPU6050Driver imu = MPU6050Driver(imu_config);
 	
 	imu.init_driver();
-	imu.read_accl();
-    	imu.read_gyro();
-	imu.read_temp();
+
+	AcclStamped accl_stamped {};
+	if(imu.read_accl(accl_stamped)) {
+		std::cout << "Accelerometer Data : " << std::endl;
+		std::cout << "X : " << accl_stamped.data.x << std::endl;
+		std::cout << "Y : " << accl_stamped.data.y << std::endl;
+		std::cout << "Z : " << accl_stamped.data.z << std::endl;
+		std::cout << accl_stamped.timestamp << std::endl;
+	}
 }
