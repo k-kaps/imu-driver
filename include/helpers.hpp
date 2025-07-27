@@ -35,7 +35,7 @@
 #define TEMP_REG 0x41
 
 #define GRAVITY 9.81
-#define DELAY_TIME 200'000
+#define DELAY_TIME 500'000
 #define STR_THRESH 14
 
 // Enums for storing config
@@ -62,6 +62,15 @@ enum DlpfCFG {
 	DLPF_CFG_5,
 	DLPF_CFG_6,
 	DLPF_CFG_7
+};
+
+enum FIFOSignals {
+	NONE = 0,
+	TEMP = (1 << 7),
+	GYRO_X = (1 << 6),
+	GYRO_Y = (1 << 5),
+	GYRO_Z = (1 << 4),
+	ACCL = (1 << 3)
 };
 
 // Structs for Config, Accl, Gyro and IMU data
