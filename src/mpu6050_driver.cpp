@@ -51,7 +51,7 @@ void MPU6050Driver::configure_imu() {
 	}
 }
 
-// void MPU6050Driver::toggle_self_test_cfg(bool on) {
+// void MPU6050Driver::configure_self_test(bool on) {
 // 	char cfg_byte = 0x00;
 // 	if (on) {
 // 		cfg_byte = 0xE0;
@@ -121,21 +121,12 @@ bool MPU6050Driver::read_gyro(GyroStamped& gyro_stamped) {
 bool MPU6050Driver::read_accl(AcclData& accl_data) {
 	if (!check_init()) return false;
 
-	uint8_t accl_x_buf[2];
-	uint8_t accl_y_buf[2];
-	uint8_t accl_z_buf[2];
-
-	read_reg(ACCL_XOUT_H, accl_x_buf, 2);
-	read_reg(ACCL_YOUT_H, accl_y_buf, 2);
-	read_reg(ACCL_ZOUT_H, accl_z_buf, 2);
-
-	int16_t accl_raw_x = combine_buf_vals(accl_x_buf);
-	int16_t accl_raw_y = combine_buf_vals(accl_y_buf);
-	int16_t accl_raw_z = combine_buf_vals(accl_z_buf);
-
-	accl_data.x = process_raw_accl_val(accl_raw_x);
-	accl_data.y = process_raw_accl_val(accl_raw_y);
-	accl_data.z = process_raw_accl_val(accl_raw_z);
+	uint8_t accl_hl_buf[6];
+	read_reg(ACCL_XOUT_H, accl_hl_buf, 6);
+	
+	int16_t accl_raw_buf[3];
+	unpack_hl_vals(accl_hl_buf, accl_raw_buf);
+	process_raw_buf(accl_data, accl_raw_buf);
 
 	return true;
 }
@@ -143,21 +134,12 @@ bool MPU6050Driver::read_accl(AcclData& accl_data) {
 bool MPU6050Driver::read_gyro(GyroData& gyro_data) {
 	if (!check_init()) return false;
 
-	uint8_t gyro_x_buf[2];
-	uint8_t gyro_y_buf[2];
-	uint8_t gyro_z_buf[2];
-
-	read_reg(GYRO_XOUT_H, gyro_x_buf, 2);
-	read_reg(GYRO_YOUT_H, gyro_y_buf, 2);
-	read_reg(GYRO_ZOUT_H, gyro_z_buf, 2);
+	uint8_t gyro_hl_buf[6];
+	read_reg(GYRO_XOUT_H, gyro_hl_buf, 6);
 	
-	int16_t gyro_raw_x = combine_buf_vals(gyro_x_buf);
-	int16_t gyro_raw_y = combine_buf_vals(gyro_y_buf);
-	int16_t gyro_raw_z = combine_buf_vals(gyro_z_buf);
-
-	gyro_data.x = process_raw_gyro_val(gyro_raw_x);
-	gyro_data.y = process_raw_gyro_val(gyro_raw_y);
-	gyro_data.z = process_raw_gyro_val(gyro_raw_z);
+	int16_t gyro_raw_buf[3];
+	unpack_hl_vals(gyro_hl_buf, gyro_raw_buf);
+	process_raw_buf(gyro_data, gyro_raw_buf);
 
 	return true;
 }
@@ -178,55 +160,24 @@ bool MPU6050Driver::read_imu(IMUData& imu_data) {
 	return false;
 }
 
-bool MPU6050Driver::read_temp(TempStamped& temp_stamped) {
-	if (!check_init()) return false;
-
-	uint8_t temp_buf[2];
-
-	read_reg(TEMP_REG, temp_buf, 2);
-
-	int16_t temp_raw = combine_buf_vals(temp_buf);
-
-	temp_stamped.data = process_raw_temp_val(temp_raw);
-	temp_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
-		(std::chrono::system_clock::now().time_since_epoch()).count();
-
-	return true;
+void MPU6050Driver::process_raw_buf(AcclData& accl_data, int16_t* raw_buf) {
+	accl_data.x = process_raw_accl_val(raw_buf[0]);
+	accl_data.y = process_raw_accl_val(raw_buf[1]);
+	accl_data.z = process_raw_accl_val(raw_buf[2]);
 }
 
-bool MPU6050Driver::get_fifo_status() {
-	uint8_t fifo_status[1];
-	read_reg(USER_CONTROL, fifo_status, 1);
-	if ((fifo_status[1] >> 6) & 0x01) {
-		return true;
-	}
-	else {
-		return false;
+void MPU6050Driver::process_raw_buf(GyroData& gyro_data, int16_t* raw_buf) {
+	gyro_data.x = process_raw_gyro_val(raw_buf[0]);
+	gyro_data.y = process_raw_gyro_val(raw_buf[1]);
+	gyro_data.z = process_raw_gyro_val(raw_buf[2]);
+}
+
+void MPU6050Driver::unpack_hl_vals(uint8_t* hl_buf, int16_t* raw_buf) {
+	for(int i = 0; i < 3; i++) {
+		raw_buf[i] = combine_hl_vals(&hl_buf[i*2]);
 	}
 }
-
-
-bool MPU6050Driver::get_change_from_ft(AcclData& diff, AcclData& ft) {
-	AcclData percent_resp = diff.str_percent(ft);
-	std::cout << "ACCL" << std::endl;
-	std::cout << percent_resp.x << " " << percent_resp.y << " " << percent_resp.z << std::endl;
-	if (percent_resp.x > STR_THRESH || percent_resp.y > STR_THRESH || percent_resp.z > STR_THRESH) {
-		return false;
-	}	
-	return true;
-}
-
-bool MPU6050Driver::get_change_from_ft(GyroData& diff, GyroData& ft) {
-	GyroData percent_resp = diff.str_percent(ft);
-	std::cout << "GYRO" << std::endl;
-	std::cout << percent_resp.x << " " << percent_resp.y << " " << percent_resp.z << std::endl;
-	if (percent_resp.x > STR_THRESH || percent_resp.y > STR_THRESH || percent_resp.z > STR_THRESH) {
-		return false;
-	}
-	return true;
-}
-
-int16_t MPU6050Driver::combine_buf_vals(uint8_t* buf) {
+int16_t MPU6050Driver::combine_hl_vals(uint8_t* buf) {
 	int16_t processed_val = (buf[0] << 8) | (buf[1] & 0xFF);
 	return processed_val;
 }
@@ -244,6 +195,33 @@ double MPU6050Driver::process_raw_gyro_val(int16_t gyro_val) {
 double MPU6050Driver::process_raw_temp_val(int16_t temp_val) {
 	double temp_C = temp_val/340.0 + 36.53;
 	return temp_C;
+}
+
+bool MPU6050Driver::read_temp(TempStamped& temp_stamped) {
+	if (!check_init()) return false;
+
+	uint8_t temp_buf[2];
+
+	read_reg(TEMP_REG, temp_buf, 2);
+
+	int16_t temp_raw = combine_hl_vals(temp_buf);
+
+	temp_stamped.data = process_raw_temp_val(temp_raw);
+	temp_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
+		(std::chrono::system_clock::now().time_since_epoch()).count();
+
+	return true;
+}
+
+bool MPU6050Driver::get_fifo_status() {
+	uint8_t fifo_status[1];
+	read_reg(USER_CONTROL, fifo_status, 1);
+	if ((fifo_status[1] >> 6) & 0x01) {
+		return true;
+	}
+	else {
+		return false;
+	}
 }
 
 void MPU6050Driver::read_reg(char reg_addr, uint8_t* out_buf, uint8_t size) {

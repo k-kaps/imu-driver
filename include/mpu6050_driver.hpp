@@ -34,6 +34,10 @@ public:
 	void set_fifo_enabled(bool on, FIFOSignals signals);
 	bool get_fifo_status();
 
+	bool run_accl_self_test();
+	bool run_gyro_self_test();
+	bool run_imu_self_test();
+
 private:
 	int file_;
 	bool init_;
@@ -46,20 +50,21 @@ private:
 		{{GyroFSR::G_FSR_250, 131.0}, {GyroFSR::G_FSR_500, 65.5}, 
 		{GyroFSR::G_FSR_1000, 32.8}, {GyroFSR::G_FSR_2000, 16.4}};
 
-	int16_t combine_buf_vals(uint8_t* buf);
+	void unpack_hl_vals(uint8_t* hl_buf, int16_t* raw_buf);
+	int16_t combine_hl_vals(uint8_t* buf);
+	void process_raw_buf(AcclData& accl_data, int16_t* raw_buf);
+	void process_raw_buf(GyroData& gyro_data, int16_t* raw_buf);
 	double process_raw_accl_val(int16_t accl_val);
 	double process_raw_gyro_val(int16_t gyro_val);
 	double process_raw_temp_val(int16_t temp_val);
 
 	void configure_imu();
 
-	// void toggle_self_test_cfg(bool on);
+	void configure_self_test(bool on);
 	void configure_fifo(FIFOSignals signals);
 	void reset_fifo_buffer();
 
-	bool compute_ft(AcclData& accl_ft, GyroData& gyro_ft);
-	bool get_change_from_ft(AcclData& diff, AcclData& ft);
-	bool get_change_from_ft(GyroData& diff, GyroData& ft);
+	bool get_ft_values();
 
 	void read_reg(char reg_addr, uint8_t* out_buf, uint8_t size);
 
