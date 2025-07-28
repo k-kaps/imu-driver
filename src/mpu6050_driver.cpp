@@ -28,9 +28,13 @@ void MPU6050Driver::init_driver() {
 	if (*val != 0x68) {
 		error_handler("Failed WHO_AM_I reg test when initializing");
 	}
-	
+
 	configure_imu();
-	
+
+	if(!get_ft_vals()) {
+		error_handler("Failed to retrieve Factory Trim Values");
+	}
+
 	init_ = true;
 }
 
@@ -51,25 +55,8 @@ void MPU6050Driver::configure_imu() {
 	}
 }
 
-// void MPU6050Driver::configure_self_test(bool on) {
-// 	char cfg_byte = 0x00;
-// 	if (on) {
-// 		cfg_byte = 0xE0;
-// 	}
-	
-// 	char accl_cfg[2] = {ACCL_CONFIG, cfg_byte};
-// 	if (write(file_, accl_cfg, 2) != 2) {
-// 		error_handler("Failed to toggle self test for Accelerometer");
-// 	}
-
-// 	char gyro_cfg[2] = {GYRO_CONFIG, cfg_byte};
-// 	if (write(file_, gyro_cfg, 2) != 2) {
-// 		error_handler("Failed to toggle self test for Gyroscope");
-// 	}
-// }
-
-void MPU6050Driver::configure_fifo(FIFOSignals signals) {
-	char fifo_en[2] = {FIFO_ENABLE, signals};
+void MPU6050Driver::configure_fifo(FifoCFG conf) {
+	char fifo_en[2] = {FIFO_ENABLE, conf};
 	if (write(file_, fifo_en, 2) != 2) {
 		error_handler("Failed to configure FIFO");
 	}
@@ -83,10 +70,10 @@ void MPU6050Driver::reset_fifo_buffer() {
 	}
 }
 
-void MPU6050Driver::set_fifo_enabled(bool enable, FIFOSignals signals) {
+void MPU6050Driver::set_fifo_enabled(bool enable, FifoCFG signals) {
 	char fifo_byte = 0x00;
 	if (!enable) {
-		configure_fifo(FIFOSignals::NONE);
+		configure_fifo(FifoCFG::FIFO_NONE);
 		reset_fifo_buffer();
 	}
 	else {
@@ -99,6 +86,33 @@ void MPU6050Driver::set_fifo_enabled(bool enable, FIFOSignals signals) {
 	}
 }
 
+bool MPU6050Driver::check_fifo_count(uint16_t size) {
+	uint8_t count[2];
+	uint16_t num_samples;
+
+	read_reg(FIFO_COUNT, count, 2);
+	num_samples = combine_hl_vals(count);
+
+	if (size > num_samples) {
+		return false;
+	}
+	return true;
+}
+
+bool MPU6050Driver::read_fifo_buffer(uint8_t* buf, uint16_t size) {
+	if (size > 1024) {
+		std::cout << "Requested size greater than maximum FIFO buffer size" << std::endl;
+		return false;
+	}
+	if (!check_fifo_count(size)) {
+		std::cout << "Requested size greater than number of values in the buffer" << std::endl; 	
+		return false;
+	}
+	
+	read_reg(FIFO_RW, buf, size);
+
+	return true;
+}
 
 bool MPU6050Driver::read_accl(AcclStamped& accl_stamped) {
 	if (read_accl(accl_stamped.data)) {
@@ -107,15 +121,6 @@ bool MPU6050Driver::read_accl(AcclStamped& accl_stamped) {
 		return true;
 	}
 	return true;
-}
-
-bool MPU6050Driver::read_gyro(GyroStamped& gyro_stamped) {
-	if (read_gyro(gyro_stamped.data)) {
-		gyro_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
-			(std::chrono::system_clock::now().time_since_epoch()).count();
-		return true;
-	}
-	return false;
 }
 
 bool MPU6050Driver::read_accl(AcclData& accl_data) {
@@ -129,6 +134,15 @@ bool MPU6050Driver::read_accl(AcclData& accl_data) {
 	process_raw_buf(accl_data, accl_raw_buf);
 
 	return true;
+}
+
+bool MPU6050Driver::read_gyro(GyroStamped& gyro_stamped) {
+	if (read_gyro(gyro_stamped.data)) {
+		gyro_stamped.timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>
+			(std::chrono::system_clock::now().time_since_epoch()).count();
+		return true;
+	}
+	return false;
 }
 
 bool MPU6050Driver::read_gyro(GyroData& gyro_data) {
@@ -212,6 +226,44 @@ bool MPU6050Driver::read_temp(TempStamped& temp_stamped) {
 
 	return true;
 }
+
+bool MPU6050Driver::get_ft_vals() {
+	uint8_t accl_ft[3];
+	uint8_t gyro_ft[3];
+
+	ft_get_raw_vals(accl_ft, gyro_ft);
+
+	compute_accl_ft(accl_ft);
+	compute_gyro_ft(gyro_ft);
+
+	return true;
+}
+
+void MPU6050Driver::ft_get_raw_vals(uint8_t* accl_ft, uint8_t* gyro_ft) {
+	uint8_t ft_buf[4];
+	read_reg(FT_REG, ft_buf, 4);
+	
+	accl_ft[0] = ((ft_buf[0] >> 3) & 0x1C) | ((ft_buf[3] >> 4) & 0x03);
+	accl_ft[1] = ((ft_buf[1] >> 3) & 0x1C) | ((ft_buf[3] >> 2) & 0x03);
+	accl_ft[2] = ((ft_buf[2] >> 3) & 0x1C) | (ft_buf[3] & 0x03);
+	
+	gyro_ft[0] = ft_buf[0] & 0x1F;
+	gyro_ft[1] = ft_buf[1] & 0x1F;
+	gyro_ft[2] = ft_buf[2] & 0x1F;
+}
+
+void MPU6050Driver::compute_accl_ft(uint8_t* accl_ft) {
+	imu_ft_.accl.x = ACCL_FT_MULT * pow((0.92/0.34), (accl_ft[0] - 1)/30);
+	imu_ft_.accl.y = ACCL_FT_MULT * pow((0.92/0.34), (accl_ft[1] - 1)/30);
+	imu_ft_.accl.z = ACCL_FT_MULT * pow((0.92/0.34), (accl_ft[2] - 1)/30);	
+}
+
+void MPU6050Driver::compute_gyro_ft(uint8_t* gyro_ft) {
+	imu_ft_.gyro.x = GYRO_FT_MULT * pow(1.046, gyro_ft[0] - 1);
+	imu_ft_.gyro.y = -GYRO_FT_MULT * pow(1.046, gyro_ft[1] - 1);
+	imu_ft_.gyro.z = GYRO_FT_MULT * pow(1.046, gyro_ft[2] - 1);
+}
+
 
 bool MPU6050Driver::get_fifo_status() {
 	uint8_t fifo_status[1];

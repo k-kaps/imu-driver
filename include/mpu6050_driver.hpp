@@ -31,12 +31,10 @@ public:
 
 	bool read_temp(TempStamped& temp_stamped);
 
-	void set_fifo_enabled(bool on, FIFOSignals signals);
+	void set_fifo_enabled(bool enable, FifoCFG conf);
 	bool get_fifo_status();
-
-	bool run_accl_self_test();
-	bool run_gyro_self_test();
-	bool run_imu_self_test();
+	bool read_fifo_buffer(uint8_t* buf, uint16_t size);
+	bool check_fifo_count(uint16_t size);
 
 private:
 	int file_;
@@ -59,13 +57,14 @@ private:
 	double process_raw_temp_val(int16_t temp_val);
 
 	void configure_imu();
-
-	void configure_self_test(bool on);
-	void configure_fifo(FIFOSignals signals);
+	void configure_fifo(FifoCFG conf);
 	void reset_fifo_buffer();
 
-	bool get_ft_values();
-
+	bool get_ft_vals();
+	void ft_get_raw_vals(uint8_t* accl_ft, uint8_t* gyro_ft);
+	void compute_accl_ft(uint8_t* accl_ft);
+	void compute_gyro_ft(uint8_t* gyro_ft);
+	
 	void read_reg(char reg_addr, uint8_t* out_buf, uint8_t size);
 
 	void error_handler(const std::string& message);

@@ -9,7 +9,7 @@
 #define I2C_ADAPTER_NUM 1
 #define WHO_AM_I_REG 0x75
 #define WAKE_UP_REG 0x6B
-#define SELF_TEST 0x0D 
+#define FT_REG 0x0D 
 
 // FIFO Registers
 #define FIFO_ENABLE 0x23
@@ -38,6 +38,9 @@
 #define DELAY_TIME 500'000
 #define STR_THRESH 14
 
+#define ACCL_FT_MULT 1392.64
+#define GYRO_FT_MULT 3275.0
+
 // Enums for storing config
 enum AcclFSR {
 	A_FSR_2G,
@@ -64,8 +67,8 @@ enum DlpfCFG {
 	DLPF_CFG_7
 };
 
-enum FIFOSignals {
-	NONE = 0,
+enum FifoCFG {
+	FIFO_NONE = 0,
 	TEMP = (1 << 7),
 	GYRO_X = (1 << 6),
 	GYRO_Y = (1 << 5),
@@ -75,7 +78,7 @@ enum FIFOSignals {
 
 // Structs for Config, Accl, Gyro and IMU data
 struct MPU6050Config {
-        AcclFSR accl_fsr = A_FSR_2G;
+    AcclFSR accl_fsr = A_FSR_2G;
 	GyroFSR gyro_fsr = G_FSR_250;
 	DlpfCFG dlpf_cfg = DLPF_CFG_0;
 };
