@@ -120,7 +120,7 @@ bool MPU6050Driver::read_accl(AcclStamped& accl_stamped) {
 			(std::chrono::system_clock::now().time_since_epoch()).count();
 		return true;
 	}
-	return true;
+	return false;
 }
 
 bool MPU6050Driver::read_accl(AcclData& accl_data) {
@@ -268,7 +268,7 @@ void MPU6050Driver::compute_gyro_ft(uint8_t* gyro_ft) {
 bool MPU6050Driver::get_fifo_status() {
 	uint8_t fifo_status[1];
 	read_reg(USER_CONTROL, fifo_status, 1);
-	if ((fifo_status[1] >> 6) & 0x01) {
+	if ((fifo_status[0] >> 6) & 0x01) {
 		return true;
 	}
 	else {
