@@ -10,7 +10,7 @@ extern "C" {
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <unordered_map>
-#include <helpers.hpp>
+#include "imu-driver/helpers.hpp"
 
 class MPU6050Driver {
 public:

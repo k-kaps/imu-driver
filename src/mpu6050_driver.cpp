@@ -1,4 +1,4 @@
-#include <mpu6050_driver.hpp>
+#include <imu-driver/mpu6050_driver.hpp>
 
 MPU6050Driver::MPU6050Driver() : 
 	file_(-1), init_(false), config_(){}

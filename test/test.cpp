@@ -1,4 +1,4 @@
-#include <mpu6050_driver.hpp>
+#include <imu-driver/mpu6050_driver.hpp>
 
 bool test_read_accl() {
 	MPU6050Driver imu = MPU6050Driver();
